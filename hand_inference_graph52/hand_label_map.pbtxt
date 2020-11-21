@@ -1,0 +1,30 @@
+item { 
+	name:'back'
+	id:1
+}
+item { 
+	name:'check'
+	id:2
+}
+item { 
+	name:'stop'
+	id:3
+}
+item { 
+	name:'wait'
+	id:4
+}
+item { 
+	name:'write1'
+	id:5
+}
+item { 
+	name:'write2'
+	id:6
+}
+item { 
+	name:'write3'
+	id:7
+}
+
+
