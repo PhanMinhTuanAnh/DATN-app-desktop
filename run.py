@@ -73,7 +73,7 @@ kalman = cv2.KalmanFilter(4, 2)
 """
 kalman.measurementMatrix = np.array([[1,0,0,0],[0,1,0,0]],np.float32)
 # kalman.transitionMatrix = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]],np.float32)
-kalman.processNoiseCov = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],np.float32) * 0.3 # lưu ý
+kalman.processNoiseCov = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],np.float32) * 0.03 # lưu ý
 # kalman.processNoiseCov = np.array([[3,0,0,0],[0,3,0,0],[0,0,3,0],[0,0,0,3]],np.float32) * 0.0003 # lưu ý
 # kalman.measurementNoiseCov = np.array([[1,0],[0,1]],np.float32) * 0.00003
 
