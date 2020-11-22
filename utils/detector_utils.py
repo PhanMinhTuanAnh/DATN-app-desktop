@@ -27,7 +27,7 @@ _score_thresh = 0.20
 # overwrite4:
 # MODEL_NAME = 'hand_inference_graph52'
 # overwrite4:
-MODEL_NAME = 'hand_inference_graph53-checkcleandata'
+MODEL_NAME = 'hand_inference_graph54-checkcleandata-10000'
 # Path to frozen detection graph. This is the actual model that is used for the object detection.
 PATH_TO_CKPT = MODEL_NAME + '/frozen_inference_graph.pb'
 # List of the strings that is used to add correct label for each box.

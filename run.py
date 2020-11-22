@@ -167,8 +167,14 @@ def update_frame():
             modifiedPoints.append(arrayDrawed)
         arrayDrawed = []
 
-    elif ((classes[0] == 3 or classes[0] == 2)  and scores[0] > score_thresh): # check and stop
-        
+    elif classes[0] == 3 and scores[0] > score_thresh:
+        isBacked = True
+        check = False
+        is_start_time_write = -1
+        is_start_time_back = -1
+
+
+    elif (classes[0] == 2  and scores[0] > score_thresh): # check and stop  
         is_start_time_write = -1
         is_start_time_back = -1
         check = False
