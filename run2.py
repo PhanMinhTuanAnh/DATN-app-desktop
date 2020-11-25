@@ -54,6 +54,7 @@ num_frames = 0
 score_thresh = 0.5
 im_width, im_height = (video.get(3), video.get(4))
 num_hands_detect = 1
+fps = 1
 ###################################################
 
 # Variable ########################################
@@ -62,43 +63,6 @@ arrayDrawed = []
 modifiedPoints = []
 drawedPoints = []
 isStart = False
-
-# kalman ##########################################################
-kalman = cv2.KalmanFilter(4, 2)
-"""
-    - dynamParams: This parameter states the dimensionality of the state
-    - MeasureParams: This parameter states the dimensionality of the measurement
-    - ControlParams: This parameter states the dimensionality of the control
-    - vector.type: This parameter states the type of the created matrices that should be CV_32F or CV_64F
-"""
-kalman.measurementMatrix = np.array([[1,0,0,0],[0,1,0,0]],np.float32)
-kalman.transitionMatrix = np.array([[1,0,1/7,0],[0,1,0,1/7],[0,0,1,0],[0,0,0,1]],np.float32)
-kalman.processNoiseCov = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],np.float32) * 0.09 # lưu ý 
-
-kalman = cv2.KalmanFilter(2, 2)
-"""
-    - dynamParams: This parameter states the dimensionality of the state
-    - MeasureParams: This parameter states the dimensionality of the measurement
-    - ControlParams: This parameter states the dimensionality of the control
-    - vector.type: This parameter states the type of the created matrices that should be CV_32F or CV_64F
-"""
-kalman.measurementMatrix = np.array([[1,0],[0,1]],np.float32)
-kalman.transitionMatrix = np.array([[1,0],[0,1]],np.float32) # có thể là điều khiển vận tốc/ gia tốc được thể hiện qua dự đoán predict
-kalman.processNoiseCov = np.array([[1,0],[0,1]],np.float32) * 0.09 # lưu ý
-
-# XXXXXXXXXXXX
-# kalman = cv2.KalmanFilter(6,2) # 4: Số trạng thái, bao gồm (x, y, dx, dy) tọa độ và tốc độ (khoảng cách của mỗi chuyển động); 2: Quan sát, những gì có thể thấy là giá trị tọa độ
-
-# """
-#     - dynamParams: This parameter states the dimensionality of the state
-#     - MeasureParams: This parameter states the dimensionality of the measurement
-#     - ControlParams: This parameter states the dimensionality of the control
-#     - vector.type: This parameter states the type of the created matrices that should be CV_32F or CV_64F
-# """
-# kalman.measurementMatrix = np.array([[1,0,0,0,0,0],[0,1,0,0,0,0]],np.float32)
-# kalman.transitionMatrix = np.array([[1,0,0.17,0,0.5*(0.17**2),0],[0,1,0,0.17,0,0.5*(0.17**2)],[0,0,1,0,0.17,0],[0,0,0,1,0,0.17],[0,0,0,0,1,0],[0,0,0,0,0,1]],np.float32)
-# kalman.processNoiseCov = np.array([[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0],[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]],np.float32) * 0.0009 # hiệp phương sai
-
 
 check = False # to check hội tụ
 
@@ -129,6 +93,8 @@ selected_kanji_lbl_y = 20
 selected_kanji_lbl = Label(window, text="", fg="red", font=("Arial",250)) # màu chữ
 selected_kanji_lbl.place(x=selected_kanji_lbl_x, y=selected_kanji_lbl_y)
 
+TanhDraw = []
+
 def predict_thread(img):
     global selected_kanji_lbl, kanji_model
     return selected_kanji_lbl.configure(text=kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
@@ -136,7 +102,7 @@ def predict_thread(img):
 def update_frame():
     global canvas, photo, bw, count, num_frames, elapsed_time, modifiedPoints, arrayDrawed, check, \
             is_start_time_back, is_start_time_write, pre_predict, pixelDraw, l, r, t, b, \
-            isBacked, isFirstPoint
+            isBacked, isFirstPoint, TanhDraw
     ret, frame = video.read()
     frame = cv2.flip(frame, 1)
 
@@ -158,29 +124,23 @@ def update_frame():
         ptemp = np.array([np.float32(left+(right-left)/8), np.float32(top+(bottom-top)/8)]) # thằng này không đổi để chờ hội tụ
         coor = (int(left+(right-left)/8),int(top+(top-bottom)/8))
         isBacked = True
-        
-        x = kalman.correct(p)
-        p = kalman.predict()
 
-        # print(p)
-        # if(classes[0] == 7 and (pre_predict == 5 or pre_predict == 6)): # kiểu thứ 3 đầu ngón qua bên phải
-        #     p = np.array([np.float32(left+(right-left)/8*7), np.float32(top+(bottom-top)/8)])
-        #     ptemp = np.array([np.float32(left+(right-left)/8*7), np.float32(top+(bottom-top)/8)]) # thằng này không đổi để chờ hội tụ
-        #     coor = (int(left+(right-left)/8*7),int(top+(top-bottom)/8))
-        #     while(abs(int(p[0])-coor[0]) > 0.1 and abs(int(p[1])-coor[1]) > 0.1):
-        #         arrayDrawed.append((int(p[0]),int(p[1])))
-        #         kalman.correct(ptemp)
-        #         p = kalman.predict()
-        
-        while(abs(int(p[0])-coor[0]) > 0.1 and abs(int(p[1])-coor[1]) > 0.1 and check == False):
-            x = kalman.correct(ptemp)
-            p = kalman.predict()
-            print(x)
-        # p = x
-        check = True
-        cv2.line(frame, (int(p[0]),int(p[1])), (int(p[0]),int(p[1])), (255, 255, 0), 30)
-        arrayDrawed.append((int(p[0]),int(p[1])))
+        TanhDraw.append((p[0],p[1]))
 
+        # print(TanhDraw[0])
+
+        if(len(TanhDraw) > fps/2):
+            avgx = 0 
+            avgy = 0
+            for i in range(len(TanhDraw)-4, len(TanhDraw)):
+                # print(i)
+                avgx = avgx + TanhDraw[i][0]
+                avgy = avgy + TanhDraw[i][1]
+            # check = True
+            cv2.line(frame, (int(avgx//4),int(avgy//4)), (int(avgx//4),int(avgy//4)), (255, 255, 0), 30)
+            arrayDrawed.append((int(avgx//4),int(avgy//4)))
+        # cv2.line(frame, (int(p[0]),int(p[1])), (int(p[0]),int(p[1])), (255, 255, 0), 30)
+        # arrayDrawed.append((int(p[0]),int(p[1])))
 
     elif classes[0] == 4 and scores[0] > score_thresh:
         is_start_time_back = -1
@@ -189,6 +149,7 @@ def update_frame():
         isBacked = True
         isFirstPoint = False
         countPassedPoint = 0
+        TanhDraw = []
 
         if(len(arrayDrawed) > 0): # có thì mới add được
             modifiedPoints.append(arrayDrawed)
@@ -271,6 +232,7 @@ def update_frame():
         # isStart = False
         # check = False
     elif classes[0] == 1  and scores[0] > score_thresh:
+        TanhDraw = []
         is_start_time_write = -1
         check = False
         if(is_start_time_back == -1): # nếu chưa back trước lần nào thì gán
