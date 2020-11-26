@@ -19,6 +19,7 @@ from utils import predictor_utils as predictor_utils
 
 from utils.hiragana import hiragana
 from utils.kanji import kanji
+from utils.kanjiAllThings import kanjiAllThings
 import cv2
 import tensorflow as tf
 import datetime
@@ -51,7 +52,7 @@ video.set(cv2.CAP_PROP_FRAME_HEIGHT, screenHeight)
 # Thông số ########################################
 start_time = datetime.datetime.now()
 num_frames = 0
-score_thresh = 0.5
+score_thresh = 0.8
 im_width, im_height = (video.get(3), video.get(4))
 num_hands_detect = 1
 fps = 1
@@ -80,6 +81,9 @@ pre_predict = -1
 
 is_start_time_back = -1 # tính giờ cho back nếu lớn hơn 1,5s xóa hết
 is_start_time_write = -1
+is_start_time_wait = -1
+is_start_time_check = -1
+
 ###################################################
 
 canvas_w = video.get(cv2.CAP_PROP_FRAME_WIDTH) // 4 * 3
@@ -90,19 +94,47 @@ canvas.place(x=0, y=0)
 
 selected_kanji_lbl_x = video.get(cv2.CAP_PROP_FRAME_WIDTH) // 4 * 3 + 20
 selected_kanji_lbl_y = 20
-selected_kanji_lbl = Label(window, text="", fg="red", font=("Arial",250)) # màu chữ
+selected_kanji_lbl = Label(window, text="", fg="black", font=("Arial",250)) # màu chữ
 selected_kanji_lbl.place(x=selected_kanji_lbl_x, y=selected_kanji_lbl_y)
+selected_kanji_han_viet_lbl = Label(window, text="", fg="red", font=("Arial",20)) # màu chữ
+selected_kanji_han_viet_lbl.place(x=selected_kanji_lbl_x, y=350)
+selected_kanji_ON_lbl = Label(window, text="", fg="black", font=("Arial",15)) # màu chữ
+selected_kanji_ON_lbl.place(x=selected_kanji_lbl_x, y=400)
+selected_kanji_KUN_lbl = Label(window, text="", fg="black", font=("Arial",15)) # màu chữ
+selected_kanji_KUN_lbl.place(x=selected_kanji_lbl_x, y=450)
+selected_kanji_tu_vung_1_lbl = Label(window, text="", fg="black", font=("Arial",15)) # màu chữ
+selected_kanji_tu_vung_1_lbl.place(x=selected_kanji_lbl_x, y=500)
+
+
 
 TanhDraw = []
 
 def predict_thread(img):
     global selected_kanji_lbl, kanji_model
-    return selected_kanji_lbl.configure(text=kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
+    predicted_id = predictor_utils.predict_all(img, kanji_model=kanji_model)
+    selected_kanji_lbl.configure(text=kanjiAllThings[str(predicted_id)]["kanji"])
+    if("han_viet" in kanjiAllThings[str(predicted_id)].keys()):
+        selected_kanji_han_viet_lbl.configure(text=kanjiAllThings[str(predicted_id)]["han_viet"])
+    else:
+        selected_kanji_han_viet_lbl.configure(text="")
+    if("on" in kanjiAllThings[str(predicted_id)].keys()):
+        selected_kanji_ON_lbl.configure(text="ON: " + kanjiAllThings[str(predicted_id)]["on"])
+    else:
+        selected_kanji_ON_lbl.configure(text="")
+    if("kun" in kanjiAllThings[str(predicted_id)].keys()):    
+        selected_kanji_KUN_lbl.configure(text="KUN: " + kanjiAllThings[str(predicted_id)]["kun"])
+    else:
+        selected_kanji_KUN_lbl.configure(text="")
+    if("tu_vung" in kanjiAllThings[str(predicted_id)].keys()):
+        selected_kanji_tu_vung_1_lbl.configure(text=kanjiAllThings[str(predicted_id)]["tu_vung"][0].replace(","," : "))
+    else:
+        selected_kanji_tu_vung_1_lbl.configure(text="")
+    
 
 def update_frame():
     global canvas, photo, bw, count, num_frames, elapsed_time, modifiedPoints, arrayDrawed, check, \
-            is_start_time_back, is_start_time_write, pre_predict, pixelDraw, l, r, t, b, \
-            isBacked, isFirstPoint, TanhDraw, fps
+            is_start_time_back, is_start_time_write, is_start_time_wait, is_start_time_check, \
+            pre_predict, pixelDraw, l, r, t, b, isBacked, isFirstPoint, TanhDraw, fps
     ret, frame = video.read()
     frame = cv2.flip(frame, 1)
 
@@ -119,11 +151,10 @@ def update_frame():
     
     if (classes[0] == 5 or classes[0] == 6 or classes[0] == 7) and scores[0] > score_thresh:
         is_start_time_back = -1
-        ## kalman #####################################################
-        p = np.array([np.float32(left+(right-left)/8), np.float32(top+(bottom-top)/8)])
-        ptemp = np.array([np.float32(left+(right-left)/8), np.float32(top+(bottom-top)/8)]) # thằng này không đổi để chờ hội tụ
-        coor = (int(left+(right-left)/8),int(top+(top-bottom)/8))
+        is_start_time_check = -1
         isBacked = True
+
+        p = np.array([np.float32(left+(right-left)/8), np.float32(top+(bottom-top)/8)])
 
         TanhDraw.append((p[0],p[1]))
 
@@ -133,10 +164,8 @@ def update_frame():
             avgx = 0 
             avgy = 0
             for i in range(len(TanhDraw)-k, len(TanhDraw)):
-                # print(i)
                 avgx = avgx + TanhDraw[i][0]
                 avgy = avgy + TanhDraw[i][1]
-            # check = True
             cv2.line(frame, (int(avgx//k),int(avgy//k)), (int(avgx//k),int(avgy//k)), (255, 255, 0), 30)
             arrayDrawed.append((int(avgx//k),int(avgy//k)))
         # cv2.line(frame, (int(p[0]),int(p[1])), (int(p[0]),int(p[1])), (255, 255, 0), 30)
@@ -145,6 +174,8 @@ def update_frame():
     elif classes[0] == 4 and scores[0] > score_thresh:
         is_start_time_back = -1
         is_start_time_write = -1
+        is_start_time_check = -1
+
         check = False
         isBacked = True
         isFirstPoint = False
@@ -160,77 +191,83 @@ def update_frame():
         check = False
         is_start_time_write = -1
         is_start_time_back = -1
+        is_start_time_check = -1
 
 
     elif (classes[0] == 2  and scores[0] > score_thresh): # check and stop  
-        is_start_time_write = -1
         is_start_time_back = -1
         check = False
         isBacked = True
-        if(len(arrayDrawed) > 0): # có thì mới add được
-            modifiedPoints.append(arrayDrawed)
-        for modifiedPoint in modifiedPoints:
-            for i in range(1,len(modifiedPoint)):
-                if(l > modifiedPoint[i-1][0]):
-                    l = modifiedPoint[i-1][0]
-                if(r < modifiedPoint[i-1][0]):
-                    r = modifiedPoint[i-1][0]
-                if(t > modifiedPoint[i-1][1]):
-                    t = modifiedPoint[i-1][1]
-                if(b < modifiedPoint[i-1][1]):
-                    b = modifiedPoint[i-1][1]
-                # cv2.line(frame, modifiedPoint[i], modifiedPoint[i-1], (0, 255, 0), 15)
-            if(l > modifiedPoint[len(modifiedPoint)-1][0]):
-                l = modifiedPoint[len(modifiedPoint)-1][0]
-            if(r < modifiedPoint[len(modifiedPoint)-1][0]):
-                r = modifiedPoint[len(modifiedPoint)-1][0]
-            if(t > modifiedPoint[len(modifiedPoint)-1][1]):
-                t = modifiedPoint[len(modifiedPoint)-1][1]
-            if(b < modifiedPoint[len(modifiedPoint)-1][1]):
-                b = modifiedPoint[len(modifiedPoint)-1][1]
-        if(r-l > 0 and b-t > 0):
-            maxsize = r-l
-            if r-l < b-t: 
-                maxsize = b-t
-            # elif r-l > b-t:
-            #     maxsize = r-l
-            
-            extractDataWeight = maxsize // 15  #(11 hình sai 1)
-            if extractDataWeight == 0:
-                extractDataWeight = 1
+        if(is_start_time_check == -1 ):
+            is_start_time_check = datetime.datetime.now()
+        else:
+            if((datetime.datetime.now()-is_start_time_check).total_seconds()>0.5):
+                if(len(arrayDrawed) > 0): # có thì mới add được
+                    modifiedPoints.append(arrayDrawed)
+                for modifiedPoint in modifiedPoints:
+                    for i in range(1,len(modifiedPoint)):
+                        if(l > modifiedPoint[i-1][0]):
+                            l = modifiedPoint[i-1][0]
+                        if(r < modifiedPoint[i-1][0]):
+                            r = modifiedPoint[i-1][0]
+                        if(t > modifiedPoint[i-1][1]):
+                            t = modifiedPoint[i-1][1]
+                        if(b < modifiedPoint[i-1][1]):
+                            b = modifiedPoint[i-1][1]
+                        # cv2.line(frame, modifiedPoint[i], modifiedPoint[i-1], (0, 255, 0), 15)
+                    if(l > modifiedPoint[len(modifiedPoint)-1][0]):
+                        l = modifiedPoint[len(modifiedPoint)-1][0]
+                    if(r < modifiedPoint[len(modifiedPoint)-1][0]):
+                        r = modifiedPoint[len(modifiedPoint)-1][0]
+                    if(t > modifiedPoint[len(modifiedPoint)-1][1]):
+                        t = modifiedPoint[len(modifiedPoint)-1][1]
+                    if(b < modifiedPoint[len(modifiedPoint)-1][1]):
+                        b = modifiedPoint[len(modifiedPoint)-1][1]
+                if(r-l > 0 and b-t > 0):
+                    maxsize = r-l
+                    if r-l < b-t: 
+                        maxsize = b-t
+                    # elif r-l > b-t:
+                    #     maxsize = r-l
+                    
+                    extractDataWeight = maxsize // 15  #(11 hình sai 1)
+                    if extractDataWeight == 0:
+                        extractDataWeight = 1
 
-            img = numpy.zeros([maxsize+30, maxsize+30, 3])
-            
-            for modifiedPoint in modifiedPoints:
-                for i in range(1,len(modifiedPoint)):
-                    if(maxsize == 0):
-                        cv2.line(img, (modifiedPoint[i][0]-l+15,modifiedPoint[i][1]-t+15), (modifiedPoint[i-1][0]-l+15,modifiedPoint[i-1][1]-t+15), (255,255,255), extractDataWeight)
-                    elif(maxsize == r-l):
-                        addPad = ((r-l)-(b-t)) // 2
-                        cv2.line(img, (modifiedPoint[i][0]-l+15,modifiedPoint[i][1]-t+15+addPad), (modifiedPoint[i-1][0]-l+15,modifiedPoint[i-1][1]-t+15+addPad), (255,255,255), extractDataWeight)
-                    elif(maxsize == b-t):
-                        addPad = ((b-t)-(r-l)) // 2
-                        cv2.line(img, (modifiedPoint[i][0]-l+15+addPad,modifiedPoint[i][1]-t+15), (modifiedPoint[i-1][0]-l+15+addPad,modifiedPoint[i-1][1]-t+15), (255,255,255), extractDataWeight)
-                    # print((modifiedPoint[i][0]-l,modifiedPoint[i][1]-t))
-            cv2.imwrite('img.jpg', img)
-            # print(hiragana[predictor_utils.predict_all(img, hiragana_model)])
-            # print(kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
-            # selected_kanji_lbl.configure(text=kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
-            # đa luồng: 
-            thread = Thread(target=predict_thread(img))
-            thread.start()
+                    img = numpy.zeros([maxsize+30, maxsize+30, 3])
+                    
+                    for modifiedPoint in modifiedPoints:
+                        for i in range(1,len(modifiedPoint)):
+                            if(maxsize == 0):
+                                cv2.line(img, (modifiedPoint[i][0]-l+15,modifiedPoint[i][1]-t+15), (modifiedPoint[i-1][0]-l+15,modifiedPoint[i-1][1]-t+15), (255,255,255), extractDataWeight)
+                            elif(maxsize == r-l):
+                                addPad = ((r-l)-(b-t)) // 2
+                                cv2.line(img, (modifiedPoint[i][0]-l+15,modifiedPoint[i][1]-t+15+addPad), (modifiedPoint[i-1][0]-l+15,modifiedPoint[i-1][1]-t+15+addPad), (255,255,255), extractDataWeight)
+                            elif(maxsize == b-t):
+                                addPad = ((b-t)-(r-l)) // 2
+                                cv2.line(img, (modifiedPoint[i][0]-l+15+addPad,modifiedPoint[i][1]-t+15), (modifiedPoint[i-1][0]-l+15+addPad,modifiedPoint[i-1][1]-t+15), (255,255,255), extractDataWeight)
+                            # print((modifiedPoint[i][0]-l,modifiedPoint[i][1]-t))
+                    cv2.imwrite('img.jpg', img)
+                    # print(hiragana[predictor_utils.predict_all(img, hiragana_model)])
+                    # print(kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
+                    # selected_kanji_lbl.configure(text=kanji[predictor_utils.predict_all(img, kanji_model=kanji_model)])
+                    # đa luồng: 
+                    thread = Thread(target=predict_thread(img))
+                    thread.start()
 
-        l = 2020 # left, right, top, bottom to crop image and predict
-        r = 0
-        t = 2020
-        b = 0
-        extractDataWeight = 0
-        # cv2.imshow('st2',frame[t:b,l:r])
-        # print(hiragana[predictor_utils.predict_all()])
-        arrayDrawed = []
-        modifiedPoints = []
-        # isStart = False
-        # check = False
+                    l = 2020 # left, right, top, bottom to crop image and predict
+                    r = 0
+                    t = 2020
+                    b = 0
+                    extractDataWeight = 0
+                    # cv2.imshow('st2',frame[t:b,l:r])
+                    # print(hiragana[predictor_utils.predict_all()])
+                    arrayDrawed = []
+                    modifiedPoints = []
+                    TanhDraw = []
+                    # isStart = False
+                    # check = False
+
     elif classes[0] == 1  and scores[0] > score_thresh:
         TanhDraw = []
         is_start_time_write = -1
