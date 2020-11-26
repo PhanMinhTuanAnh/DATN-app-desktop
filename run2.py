@@ -102,7 +102,7 @@ def predict_thread(img):
 def update_frame():
     global canvas, photo, bw, count, num_frames, elapsed_time, modifiedPoints, arrayDrawed, check, \
             is_start_time_back, is_start_time_write, pre_predict, pixelDraw, l, r, t, b, \
-            isBacked, isFirstPoint, TanhDraw
+            isBacked, isFirstPoint, TanhDraw, fps
     ret, frame = video.read()
     frame = cv2.flip(frame, 1)
 
@@ -128,17 +128,17 @@ def update_frame():
         TanhDraw.append((p[0],p[1]))
 
         # print(TanhDraw[0])
-
-        if(len(TanhDraw) > fps/2):
+        k = 5
+        if(len(TanhDraw) > k):
             avgx = 0 
             avgy = 0
-            for i in range(len(TanhDraw)-4, len(TanhDraw)):
+            for i in range(len(TanhDraw)-k, len(TanhDraw)):
                 # print(i)
                 avgx = avgx + TanhDraw[i][0]
                 avgy = avgy + TanhDraw[i][1]
             # check = True
-            cv2.line(frame, (int(avgx//4),int(avgy//4)), (int(avgx//4),int(avgy//4)), (255, 255, 0), 30)
-            arrayDrawed.append((int(avgx//4),int(avgy//4)))
+            cv2.line(frame, (int(avgx//k),int(avgy//k)), (int(avgx//k),int(avgy//k)), (255, 255, 0), 30)
+            arrayDrawed.append((int(avgx//k),int(avgy//k)))
         # cv2.line(frame, (int(p[0]),int(p[1])), (int(p[0]),int(p[1])), (255, 255, 0), 30)
         # arrayDrawed.append((int(p[0]),int(p[1])))
 
